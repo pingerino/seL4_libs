@@ -213,7 +213,7 @@ run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void
                 ZF_LOGD("Releasing job for thread %d\n", current->id);
                 current->reply_cap_saved = false;
                 flog_end(flog);
-                info = seL4_ReplyRecv(data->endpoint.cptr, info, &badge, current->reply.cptr);
+                info = seL4_ReplyRecv(data->endpoint.cptr, seL4_MessageInfo_new(0, 0, 0, 0), &badge, current->reply.cptr);
             }
        } else {
             /* noone to schedule */
