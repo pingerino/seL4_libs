@@ -20,10 +20,6 @@ typedef struct rb_tree {
     union {
         /* non preemptive */
         seL4_CPtr sched_context;
-        struct {
-            vka_object_t reply_object;
-            seL4_CPtr reply;
-        };
     };
     int id;
 
@@ -90,15 +86,9 @@ preempt_remove_tcb(sched_t *sched, void *tcb)
 static void
 coop_remove_tcb(sched_t *sched, void *tcb)
 {
-    cfs_data_t *data = sched->data;
     cfs_rb_tree_t *node = tcb;
 
     remove_from_tree(sched, tcb);
-
-    if (node && node->reply_object.cptr != 0) {
-        vka_free_object(data->vka, &node->reply_object);
-        node->reply = 0;
-    }
 
     if (tcb) {
         free(node);
@@ -135,13 +125,6 @@ coop_add_tcb(sched_t *sched, seL4_CPtr sched_context, void *params)
         return NULL;
     }
 
-    /* allocate reply object to receive in  */
-    if (vka_alloc_reply(data->vka, &node->reply_object) != 0) {
-        coop_remove_tcb(sched, node);
-        return NULL;
-    }
-    node->reply = node->reply_object.cptr;
-
     /* copy ep cap into provided slot */
     cspacepath_t ep_path;
     vka_cspace_make_path(data->vka, data->endpoint.cptr, &ep_path);
@@ -152,7 +135,7 @@ coop_add_tcb(sched_t *sched, seL4_CPtr sched_context, void *params)
 
     ZF_LOGD("Wait for first message from client\n");
     /* wait for first message from client */
-    seL4_Recv(data->endpoint.cptr, NULL, node->reply);
+    seL4_Wait(data->endpoint.cptr, NULL);
 
     /* convert to passive */
     ZF_LOGD("Convert to passive\n");
@@ -187,7 +170,6 @@ coop_run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie,
 {
 
     cfs_data_t *data = sched->data;
-    cfs_rb_tree_t *prev = head(data->tree);
     UNUSED int error;
     seL4_SchedContext_Consumed_t consumed;
     UNUSED flog_t *flog = (flog_t *) args;
@@ -199,27 +181,15 @@ coop_run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie,
 
     flog_start(flog);
     cfs_rb_tree_t *current = pick(data);
-    seL4_CPtr reply = current->reply;
 
     while (!finished(cookie)) {
-
-        /* swap reply cap */
-        if (current != prev) {
-            assert(current->reply == reply);
-            current->reply = prev->reply;
-            prev->reply = reply;
-        }
-
         /* wait for current to yield */
         ZF_LOGV("Waiting for thread\n");
         flog_end(flog);
-        seL4_ReplyRecv(data->endpoint.cptr, seL4_MessageInfo_new(0, 0, 0, 1), NULL, reply);
+        seL4_Call(data->endpoint.cptr, seL4_MessageInfo_new(0, 0, 0, 1));
         flog_start(flog);
-
         consumed = seL4_SchedContext_Consumed(data->sched_context);
         add(data, current, consumed.consumed);
-
-        prev = current;
         current = pick(data);
     }
 
