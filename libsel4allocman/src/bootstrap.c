@@ -532,7 +532,7 @@ int bootstrap_transfer_caps_simple(bootstrap_info_t *bs, simple_t *simple, int l
                     bs->old_cnode.capPtr, pos, bs->old_cnode.capDepth);
         }
         if (error != seL4_NoError) {
-            return 1;
+            ZF_LOGW("Failed to copy cap %p\n", (void *) pos);
         }
     }
     return 0;
