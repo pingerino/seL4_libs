@@ -157,7 +157,6 @@ static cfs_rb_tree_t *
 pick(cfs_data_t *data)
 {
     cfs_rb_tree_t *current = head(data->tree);
-    sglib_cfs_rb_tree_t_delete(&data->tree, current);
     ZF_LOGD("Picked %p\n", current);
     return current;
 }
@@ -166,6 +165,7 @@ static void
 add(cfs_data_t *data, cfs_rb_tree_t *current, seL4_Time consumed)
 {
     /* put the node back in the heap */
+    sglib_cfs_rb_tree_t_delete(&data->tree, current);
     current->weight += consumed;
     sglib_cfs_rb_tree_t_add(&data->tree, current);
 }
