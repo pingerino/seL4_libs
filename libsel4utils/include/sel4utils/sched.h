@@ -39,6 +39,7 @@ struct cfs_sched_add_tcb_args {
        endpoint to signal job completion and wait for next job release. Only
        used in coop cfs implementation. */
     cspacepath_t slot;
+    seL4_CPtr tcb;
 };
 
 /* generic scheduling interface */

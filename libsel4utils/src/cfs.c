@@ -17,10 +17,9 @@
 /* define RB tree for scheduler implementation */
 typedef struct rb_tree {
     uint64_t weight;
-    union {
-        /* non preemptive */
-        seL4_CPtr sched_context;
-    };
+    /* non preemptive */
+    seL4_CPtr sched_context;
+    seL4_CPtr tcb;
     int id;
 
     /* fields for sglib rb tree */
@@ -88,9 +87,13 @@ coop_remove_tcb(sched_t *sched, void *tcb)
 {
     cfs_rb_tree_t *node = tcb;
 
+    UNUSED seL4_Word error = seL4_SchedContext_Bind(node->sched_context, node->tcb);
+    assert(error == seL4_NoError);
+
     remove_from_tree(sched, tcb);
 
-    if (tcb) {
+    if (node) {
+        /* rebind the sc */
         free(node);
     }
 }
@@ -120,6 +123,8 @@ coop_add_tcb(sched_t *sched, seL4_CPtr sched_context, void *params)
     cfs_data_t *data = sched->data;
     cfs_rb_tree_t *node = preempt_add_tcb(sched, sched_context, params);
     struct cfs_sched_add_tcb_args *args = params;
+
+    node->tcb = args->tcb;
 
     if (node == NULL) {
         return NULL;
