@@ -194,6 +194,7 @@ coop_run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie,
         seL4_Call(data->endpoint.cptr, seL4_MessageInfo_new(0, 0, 0, 1));
         flog_start(flog);
         consumed = seL4_SchedContext_Consumed(data->sched_context);
+        assert(consumed.error == seL4_NoError);
         add(data, current, consumed.consumed);
         current = pick(data);
     }
@@ -223,12 +224,12 @@ preempt_run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cook
         flog_end(flog);
         consumed = seL4_SchedContext_YieldTo(current->sched_context);
         flog_start(flog);
-        ZF_LOGD("%p ran for %llu\n", current, consumed.consumed);
 
         assert(consumed.error == seL4_NoError);
+        assert(consumed.consumed > 0);
 
         /* put the node back in the heap */
-        add(data, current, consumed.consumed);
+        add(data, current, 1llu);
     }
 
     return 0;
