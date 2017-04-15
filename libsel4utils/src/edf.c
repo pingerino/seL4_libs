@@ -185,11 +185,7 @@ run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void
 
         /* set timeout for next release */
         if (next_interrupt != UINT64_MAX) {
-            error = timer_oneshot_relative(data->timeout_timer->timer, next_interrupt - time);
-            if (unlikely(error == ETIME)) {
-                error = timer_oneshot_relative(data->timeout_timer->timer, 10 * NS_IN_US);
-                ZF_LOGF_IF(error, "Failed to set backup timer irq");
-            }
+            error = timer_oneshot_relative(data->timeout_timer->timer, MAX(next_interrupt - time, 100 * NS_IN_US));
             ZF_LOGF_IF(error, "Failed to set timeout for %"PRIuPTR" - %"PRIuPTR" = %"PRIuPTR", %d\n", next_interrupt,
                         time, next_interrupt - time, error);
         }
