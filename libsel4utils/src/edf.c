@@ -233,9 +233,9 @@ run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void
             sel4_timer_handle_single_irq(data->timeout_timer);
             break;
         default:
-            ZF_LOGF_IF(current == NULL, "Got message when no thread scheduled!");
-            ZF_LOGF_IF(current->id != badge, "Got message from wrong thread %lu", badge);
             ZF_LOGD("Message from %d, fault? %d\n", badge, seL4_isTimeoutFault_tag(info));
+            ZF_LOGF_IF(current == NULL, "Got message when no thread scheduled!");
+            ZF_LOGF_IF(current->id != badge, "Got message from wrong thread %lu, expected %lu, fault? %d", badge, current->id, seL4_isTimeoutFault_tag(info));
 
             assert(sglib_edf_rb_tree_t_is_member(data->deadline_tree, current));
             sglib_edf_rb_tree_t_delete(&data->deadline_tree, current);
