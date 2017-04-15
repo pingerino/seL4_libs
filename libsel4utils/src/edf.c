@@ -16,12 +16,13 @@
 #include <utils/sglib.h>
 #include <vka/capops.h>
 
+
 /* define RB tree for EDF implementation */
 typedef struct rb_tree {
     uint64_t weight;
     time_t budget;
     time_t period;
-    vka_object_t reply;
+    seL4_CPtr reply;
     cspacepath_t slot;
     seL4_CPtr tcb;
     seL4_CPtr sched_context;
@@ -105,14 +106,16 @@ add_tcb(sched_t *sched, seL4_CPtr sched_context, void *params)
     }
 
     /* create a slot in the schedulers cspace to save the reply cap in */
-    ZF_LOGD("Creating reply\n");
-    error = vka_alloc_reply(data->vka, &node->reply);
-    if (error != seL4_NoError) {
-        ZF_LOGE("Failed to alloc path for reply: %d\n", error);
-        vka_cnode_delete(&args->slot);
-        free(node);
-        return NULL;
+    node->reply = args->reply;
+
+    /* wait for first call */
+    ZF_LOGD("Wait for first call\n");
+    seL4_Word badge = 0;
+    while (badge != node->id) {
+        seL4_Recv(data->endpoint.cptr, &badge, node->reply);
+        printf("Got badge %d, expected %d\n", badge, node->id);
     }
+    node->reply_cap_saved = true;
 
     sglib_edf_rb_tree_t_add(&data->release_tree, node);
     assert(head(data->release_tree) != NULL);
@@ -207,13 +210,13 @@ run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void
                 seL4_SchedContext_YieldTo_t result = seL4_SchedContext_YieldTo(current->sched_context);
                 ZF_LOGF_IFERR(result.error, "YieldTo failed");
                 flog_end(flog);
-                info = seL4_Recv(data->endpoint_path.capPtr, &badge, current->reply.cptr);
+                info = seL4_Recv(data->endpoint_path.capPtr, &badge, current->reply);
             } else {
                 /* current is waiting for us to reply to it once its budget is refilled */
                 ZF_LOGD("Releasing job for thread %d\n", current->id);
                 current->reply_cap_saved = false;
                 flog_end(flog);
-                info = seL4_ReplyRecv(data->endpoint.cptr, seL4_MessageInfo_new(0, 0, 0, 0), &badge, current->reply.cptr);
+                info = seL4_ReplyRecv(data->endpoint.cptr, seL4_MessageInfo_new(0, 0, 0, 0), &badge, current->reply);
             }
        } else {
             /* noone to schedule */
@@ -262,7 +265,6 @@ destroy_tree(edf_data_t *data, edf_rb_tree_t **tree)
 
     current = sglib_edf_rb_tree_t_it_init(&it, *tree);
     while (current != NULL) {
-        vka_free_object(data->vka, &current->reply);
         vka_cnode_delete(&current->slot);
         free(current);
         current = sglib_edf_rb_tree_t_it_next(&it);

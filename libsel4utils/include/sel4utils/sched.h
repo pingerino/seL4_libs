@@ -31,6 +31,7 @@ struct edf_sched_add_tcb_args {
     /* empty slot to save a minted endpoint cap in, threads should Call on this
        endpoint to signal job completion and wait for next job release. */
     cspacepath_t slot;
+    seL4_CPtr reply;
 };
 
 struct cfs_sched_add_tcb_args {
