@@ -56,8 +56,7 @@ struct sched {
  * Create an EDF scheduler. Multiple EDF schedulers can co-exist, however they should run on distinct
  * priorities.
  *
- * @param clock_timer   initialised timer interface that can be used for a 64-bit, upcounting timestamp.
- * @param timeout_timer initialised timer interface that supports 32 bit relative timeouts
+ * @param timer         initialised timer
  * @param vka           vka interface to allocate objects and cslots of the scheduler
  * @param tcb           cap to the tcb of the thread that the scheduler will run in.
  * @param notification  notification that irqs from timeout_timer are delivered on.
@@ -65,7 +64,7 @@ struct sched {
  * @return an initialised EDF scheduling interface.
  *         NULL on error.
  */
-sched_t *sched_new_edf(seL4_timer_t *clock_timer, seL4_timer_t *timeout_timer, vka_t *vka,
+sched_t *sched_new_edf(seL4_timer_t *timer, vka_t *vka,
                        seL4_CPtr tcb, seL4_CPtr notification);
 
 /*

@@ -57,8 +57,7 @@ SGLIB_DEFINE_RBTREE_FUNCTIONS(edf_rb_tree_t, left, right, colour_field, edf_comp
 typedef struct edf_data {
     edf_rb_tree_t *release_tree;
     edf_rb_tree_t *deadline_tree;
-    seL4_timer_t *clock_timer;
-    seL4_timer_t *timeout_timer;
+    seL4_timer_t *timer;
     cspacepath_t endpoint_path;
     vka_object_t endpoint;
     seL4_CPtr notification;
@@ -175,17 +174,21 @@ run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void
     edf_rb_tree_t *prev = NULL;
 
     /* release all threads - scheduler starts now */
-    start(data, timer_get_time(data->clock_timer->timer));
-    timer_start(data->timeout_timer->timer);
+    uint64_t time = 0;
+    error = ltimer_get_time(&data->timer->ltimer, &time);
+    ZF_LOGF_IF(error, "Failed to get time");
+    start(data, time);
 
     while (!finished(cookie)) {
         /* release threads */
-        uint64_t time = timer_get_time(data->clock_timer->timer);
+        error = ltimer_get_time(&data->timer->ltimer, &time);
+        ZF_LOGF_IF(error, "Failed to get time");
         uint64_t next_interrupt = release_threads(&data->release_tree, &data->deadline_tree, time);
 
         /* set timeout for next release */
         if (next_interrupt != UINT64_MAX) {
-            error = timer_oneshot_relative(data->timeout_timer->timer, MAX(next_interrupt - time, 100 * NS_IN_US));
+            error = ltimer_set_timeout(&data->timer->ltimer, MAX(next_interrupt - time, 100 * NS_IN_US),
+                    TIMEOUT_RELATIVE);
             ZF_LOGF_IF(error, "Failed to set timeout for %"PRIuPTR" - %"PRIuPTR" = %"PRIuPTR", %d\n", next_interrupt,
                         time, next_interrupt - time, error);
         }
@@ -230,7 +233,7 @@ run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void
             /* timer irq */
             ZF_LOGD("Tick\n");
             prev = NULL;
-            sel4_timer_handle_single_irq(data->timeout_timer);
+            sel4platsupport_handle_timer_irq(data->timer, badge);
             break;
         default:
             ZF_LOGD("Message from %d, fault? %d\n", badge, seL4_isTimeoutFault_tag(info));
@@ -245,7 +248,6 @@ run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void
         }
     }
 
-    timer_stop(data->timeout_timer->timer);
     return 0;
 }
 
@@ -326,21 +328,9 @@ destroy_scheduler(sched_t *sched)
 }
 
 sched_t *
-sched_new_edf(seL4_timer_t *clock_timer, seL4_timer_t *timeout_timer, vka_t *vka,
+sched_new_edf(seL4_timer_t *timer, vka_t *vka,
               seL4_CPtr tcb, seL4_CPtr notification)
 {
-
-    /* check clock timer has correct properties */
-    if (!clock_timer->timer->properties.upcounter) {
-        ZF_LOGE("Clock timer should be a 64 bit up counter\n");
-        return NULL;
-    }
-
-    /* check timeout_timer has correct properties */
-    if (!timeout_timer->timer->properties.timeouts) {
-        ZF_LOGE("Timeout timer must support timeouts\n");
-        return NULL;
-    }
 
     /* create scheduler and scheduler data */
     sched_t *sched = (sched_t *) calloc(1, sizeof(sched_t));
@@ -380,8 +370,7 @@ sched_new_edf(seL4_timer_t *clock_timer, seL4_timer_t *timeout_timer, vka_t *vka
 
     edf_data->next_id = 1;
     sched->data = edf_data;
-    edf_data->clock_timer = clock_timer;
-    edf_data->timeout_timer = timeout_timer;
+    edf_data->timer = timer;
     edf_data->vka = vka;
 
     /* create deadline tree */
