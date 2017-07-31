@@ -228,14 +228,9 @@ run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void
         ZF_LOGD("awake");
 
         /* wait for message or timer irq */
-        switch (badge) {
-        case 0:
-            /* timer irq */
-            ZF_LOGD("Tick\n");
-            prev = NULL;
+        if (badge >= data->next_id) {
             sel4platsupport_handle_timer_irq(data->timer, badge);
-            break;
-        default:
+        } else {
             ZF_LOGD("Message from %d, fault? %d\n", badge, seL4_isTimeoutFault_tag(info));
             ZF_LOGF_IF(current == NULL, "Got message when no thread scheduled!");
             ZF_LOGF_IF(current->id != badge, "Got message from wrong thread %lu, expected %lu, fault? %d", badge, current->id, seL4_isTimeoutFault_tag(info));
@@ -244,7 +239,6 @@ run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void
             sglib_edf_rb_tree_t_delete(&data->deadline_tree, current);
             sglib_edf_rb_tree_t_add(&data->release_tree, current);
             prev = current;
-            break;
         }
     }
 
