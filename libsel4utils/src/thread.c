@@ -121,9 +121,12 @@ sel4utils_configure_thread_config(vka_t *vka, vspace_t *parent, vspace_t *alloc,
         res->sched_context.cptr = config.sched_params.sched_context;
     }
     seL4_Word null_cap_data = seL4_NilData;
+    seL4_PrioProps_t props = {{0}};
+    props = seL4_PrioProps_set_mcp(props, config.sched_params.mcp);
+    props = seL4_PrioProps_set_prio(props, config.sched_params.priority);
     error = api_tcb_configure(res->tcb.cptr, config.fault_endpoint,
                               seL4_CapNull,
-                              seL4_PrioProps_new(config.sched_params.mcp, config.sched_params.priority),
+                              props,
                               res->sched_context.cptr,
                               config.cspace,
                               config.cspace_root_data, vspace_get_root(alloc),
