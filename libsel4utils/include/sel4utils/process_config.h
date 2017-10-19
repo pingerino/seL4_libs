@@ -154,6 +154,20 @@ process_config_mcp(sel4utils_process_config_t config, uint8_t mcp)
 }
 
 static inline sel4utils_process_config_t
+process_config_criticality(sel4utils_process_config_t config, uint8_t criticality)
+{
+    config.sched_params.criticality = criticality;
+    return config;
+}
+
+static inline sel4utils_process_config_t
+process_config_mcc(sel4utils_process_config_t config, uint8_t mcc)
+{
+    config.sched_params.mcc = mcc;
+    return config;
+}
+
+static inline sel4utils_process_config_t
 process_config_create_fault_endpoint(sel4utils_process_config_t config)
 {
     config.create_fault_endpoint = true;

@@ -28,6 +28,8 @@ typedef struct sched_params {
     uint8_t priority;
     /* seL4 maximum controlled priority for the thread. */
     uint8_t mcp;
+    uint8_t criticality;
+    uint8_t mcc;
     /* TCB to derive MCP from when setting priority/mcp (in future API) */
     seL4_CPtr auth;
     /* true if sel4utils should create an sc */
