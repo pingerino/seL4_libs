@@ -224,8 +224,9 @@ sys_mmap_impl_dynamic(void *addr, size_t length, int prot, int flags, int fd, of
     }
     if (flags & MAP_ANONYMOUS) {
         /* determine how many pages we need */
-        uint32_t pages = BYTES_TO_4K_PAGES(length);
-        void *ret = vspace_new_pages(muslc_this_vspace, seL4_AllRights, pages, seL4_PageBits);
+        size_t size_bits = sel4_page_size_bits_for_memory_region(length);
+        size_t pages = BYTES_TO_SIZE_BITS_PAGES(length, size_bits);
+        void *ret = vspace_new_pages(muslc_this_vspace, seL4_AllRights, pages, size_bits);
         return (long)ret;
     }
     assert(!"not implemented");
