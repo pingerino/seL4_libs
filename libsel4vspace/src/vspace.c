@@ -58,8 +58,13 @@ vspace_free_sized_stack(vspace_t *vspace, void *stack_top, size_t n_pages)
 void *
 vspace_new_ipc_buffer(vspace_t *vspace, seL4_CPtr *page)
 {
+    vspace_new_pages_config_t config = {0};
+    int error = default_vspace_new_pages_config(1, seL4_PageBits, &config);
+    if (unlikely(error)) {
+        return NULL;
+    }
 
-    void *vaddr = vspace_new_pages(vspace, seL4_AllRights, 1, seL4_PageBits);
+    void *vaddr = vspace_new_pages_with_config(vspace, &config, seL4_AllRights);
     if (vaddr == NULL) {
         return NULL;
     }
