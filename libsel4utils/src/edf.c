@@ -112,7 +112,6 @@ add_tcb(sched_t *sched, seL4_CPtr sched_context, void *params)
     seL4_Word badge = 0;
     while (badge != node->id) {
         seL4_Recv(data->endpoint.cptr, &badge, node->reply);
-        printf("Got badge %d, expected %d\n", badge, node->id);
     }
     node->reply_cap_saved = true;
 
@@ -170,13 +169,14 @@ run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void
     seL4_Word badge;
     seL4_MessageInfo_t info;
     int error;
-    UNUSED flog_t *flog = (flog_t *) args;
+    ccnt_t *results = args;
     edf_rb_tree_t *prev = NULL;
 
     /* release all threads - scheduler starts now */
     uint64_t time = 0;
     error = ltimer_get_time(&data->timer->ltimer, &time);
     ZF_LOGF_IF(error, "Failed to get time");
+    int i = 0;
     start(data, time);
 
     while (!finished(cookie)) {
@@ -208,23 +208,23 @@ run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void
                 ZF_LOGD("Resuming job for thread %d\n", current->id);
                 seL4_SchedContext_YieldTo_t result = seL4_SchedContext_YieldTo(current->sched_context);
                 ZF_LOGF_IFERR(result.error, "YieldTo failed");
-                flog_end(flog);
                 info = seL4_Recv(data->endpoint_path.capPtr, &badge, current->reply);
             } else {
                 /* current is waiting for us to reply to it once its budget is refilled */
                 ZF_LOGD("Releasing job for thread %d\n", current->id);
                 current->reply_cap_saved = false;
-                flog_end(flog);
                 info = seL4_ReplyRecv(data->endpoint.cptr, seL4_MessageInfo_new(0, 0, 0, 0), &badge, current->reply);
             }
        } else {
             /* noone to schedule */
             ZF_LOGD("Noone to schedule\n");
-            flog_end(flog);
+            SEL4BENCH_READ_CCNT(results[i]);
+            i++;
             info = seL4_Wait(data->endpoint.cptr, &badge);
+            SEL4BENCH_READ_CCNT(results[i]);
+            i++;
         }
 
-        flog_start(flog);
         ZF_LOGD("awake");
 
         /* wait for message or timer irq */
