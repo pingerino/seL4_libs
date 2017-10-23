@@ -504,16 +504,10 @@ sel4utils_new_pages(vspace_t *vspace, seL4_CapRights_t rights,
         return NULL;
     }
 
-    /* Since sel4utils_new_pages() is an implementation of vspace_new_pages(),
-     * it should ideally be preferring to allocate device untypeds and leaving
-     * the non-device untypeds for VKA to use when it's allocating kernel objects.
-     *
-     * Unfortunately it currently has to prefer to allocate non-device untypeds
-     * to maintain compatibility with code that uses it incorrectly, such as
-     * code that calls vspace_new_pages() to allocate an IPC buffer.
-     */
+    /* can use device untyped - this function should not be used to allocate
+     * frames that the kernel needs to write to */
     error = new_pages_at_vaddr(vspace, ret_vaddr, num_pages, size_bits, rights,
-                               (int)true, false);
+                               (int)true, true);
     if (error != 0) {
         if (clear_entries(vspace, (uintptr_t)ret_vaddr, size_bits) != 0) {
             ZF_LOGE("FATAL: Failed to clear VMM metadata for vmem @0x%p, %lu pages.",

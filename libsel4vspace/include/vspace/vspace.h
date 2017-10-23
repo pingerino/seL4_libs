@@ -428,6 +428,9 @@ struct vspace {
  * Create a virtually contiguous area of mapped pages.
  * This could be for shared memory or just allocating some pages.
  *
+ * This function should not be used to allocate pages that
+ * the kernel will write to, such as ipc buffers, as it may use device untyped pages.
+ *
  * @param vspace the virtual memory allocator used.
  * @param rights the rights to map the pages in with
  * @param num_pages the number of pages to allocate and map.
