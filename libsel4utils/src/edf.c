@@ -162,6 +162,16 @@ start(edf_data_t *data, uint64_t time)
     }
 }
 
+//#define MEASURE_SCHEDULER 1
+#ifdef MEASURE_SCHEDULER
+static ccnt_t cost[200] = {0};
+#define START SEL4BENCH_READ_CCNT(start);
+#define END   SEL4BENCH_READ_CCNT(end); cost[++i] = end - start;
+#else
+#define START
+#define END
+#endif
+
 static int
 run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void *args)
 {
@@ -169,26 +179,39 @@ run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void
     seL4_Word badge;
     seL4_MessageInfo_t info;
     int error;
-    ccnt_t *results = args;
     edf_rb_tree_t *prev = NULL;
 
     /* release all threads - scheduler starts now */
+
     uint64_t time = 0;
+#ifdef CONFIG_ARCH_ARM
     error = ltimer_get_time(&data->timer->ltimer, &time);
     ZF_LOGF_IF(error, "Failed to get time");
-    int i = 0;
+#else
+    error = 0;
+    SEL4BENCH_READ_CCNT(time);
+#endif
     start(data, time);
+#ifdef MEASURE_SCHEDULER
+    int idle = 0;
+    int i = 0;
+    ccnt_t start, end;
+#endif
 
     while (!finished(cookie)) {
         /* release threads */
+#ifdef CONFIG_ARCH_ARM
         error = ltimer_get_time(&data->timer->ltimer, &time);
+#else
+        error = 0;
+        SEL4BENCH_READ_CCNT(time);
+#endif
         ZF_LOGF_IF(error, "Failed to get time");
         uint64_t next_interrupt = release_threads(&data->release_tree, &data->deadline_tree, time);
 
         /* set timeout for next release */
         if (next_interrupt != UINT64_MAX) {
-            error = ltimer_set_timeout(&data->timer->ltimer, MAX(next_interrupt - time, 100 * NS_IN_US),
-                    TIMEOUT_RELATIVE);
+            error = ltimer_set_timeout(&data->timer->ltimer, next_interrupt - time, TIMEOUT_RELATIVE);
             ZF_LOGF_IF(error, "Failed to set timeout for %"PRIuPTR" - %"PRIuPTR" = %"PRIuPTR", %d\n", next_interrupt,
                         time, next_interrupt - time, error);
         }
@@ -208,22 +231,23 @@ run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void
                 ZF_LOGD("Resuming job for thread %d\n", current->id);
                 seL4_SchedContext_YieldTo_t result = seL4_SchedContext_YieldTo(current->sched_context);
                 ZF_LOGF_IFERR(result.error, "YieldTo failed");
+                END
                 info = seL4_Recv(data->endpoint_path.capPtr, &badge, current->reply);
             } else {
                 /* current is waiting for us to reply to it once its budget is refilled */
                 ZF_LOGD("Releasing job for thread %d\n", current->id);
                 current->reply_cap_saved = false;
+                END
                 info = seL4_ReplyRecv(data->endpoint.cptr, seL4_MessageInfo_new(0, 0, 0, 0), &badge, current->reply);
             }
        } else {
             /* noone to schedule */
             ZF_LOGD("Noone to schedule\n");
-            SEL4BENCH_READ_CCNT(results[i]);
-            i++;
+            END
             info = seL4_Wait(data->endpoint.cptr, &badge);
-            SEL4BENCH_READ_CCNT(results[i]);
-            i++;
         }
+
+        START
 
         ZF_LOGD("awake");
 
@@ -242,6 +266,12 @@ run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void
         }
     }
 
+#ifdef MEASURE_SCHEDULER
+    printf("Went idle %d times\n", idle);
+    for (int z = 0; z < i; z++) {
+        printf("%lu\n", cost[z]);
+    }
+#endif
     return 0;
 }
 
