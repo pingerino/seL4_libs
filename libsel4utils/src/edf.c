@@ -211,7 +211,7 @@ run_scheduler(sched_t *sched, bool (*finished)(void *cookie), void *cookie, void
 
         /* set timeout for next release */
         if (next_interrupt != UINT64_MAX) {
-            error = ltimer_set_timeout(&data->timer->ltimer, next_interrupt - time, TIMEOUT_RELATIVE);
+            error = ltimer_set_timeout(&data->timer->ltimer, MAX(NS_IN_US, next_interrupt - time), TIMEOUT_RELATIVE);
             ZF_LOGF_IF(error, "Failed to set timeout for %"PRIuPTR" - %"PRIuPTR" = %"PRIuPTR", %d\n", next_interrupt,
                         time, next_interrupt - time, error);
         }
